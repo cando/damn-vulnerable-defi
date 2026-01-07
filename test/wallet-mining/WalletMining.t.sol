@@ -8,22 +8,9 @@ import {Safe, OwnerManager, Enum} from "@safe-global/safe-smart-account/contract
 import {SafeProxy} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxy.sol";
 import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {WalletDeployer} from "../../src/wallet-mining/WalletDeployer.sol";
-import {
-    AuthorizerFactory, AuthorizerUpgradeable, TransparentProxy
-} from "../../src/wallet-mining/AuthorizerFactory.sol";
-import {
-    ICreateX,
-    CREATEX_DEPLOYMENT_SIGNER,
-    CREATEX_ADDRESS,
-    CREATEX_DEPLOYMENT_TX,
-    CREATEX_CODEHASH
-} from "./CreateX.sol";
-import {
-    SAFE_SINGLETON_FACTORY_DEPLOYMENT_SIGNER,
-    SAFE_SINGLETON_FACTORY_DEPLOYMENT_TX,
-    SAFE_SINGLETON_FACTORY_ADDRESS,
-    SAFE_SINGLETON_FACTORY_CODE
-} from "./SafeSingletonFactory.sol";
+import {AuthorizerFactory, AuthorizerUpgradeable, TransparentProxy} from "../../src/wallet-mining/AuthorizerFactory.sol";
+import {ICreateX, CREATEX_DEPLOYMENT_SIGNER, CREATEX_ADDRESS, CREATEX_DEPLOYMENT_TX, CREATEX_CODEHASH} from "./CreateX.sol";
+import {SAFE_SINGLETON_FACTORY_DEPLOYMENT_SIGNER, SAFE_SINGLETON_FACTORY_DEPLOYMENT_TX, SAFE_SINGLETON_FACTORY_ADDRESS, SAFE_SINGLETON_FACTORY_CODE} from "./SafeSingletonFactory.sol";
 
 contract WalletMiningChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -33,7 +20,8 @@ contract WalletMiningChallenge is Test {
     address user;
     uint256 userPrivateKey;
 
-    address constant USER_DEPOSIT_ADDRESS = 0xCe07CF30B540Bb84ceC5dA5547e1cb4722F9E496;
+    address constant USER_DEPOSIT_ADDRESS =
+        0xCe07CF30B540Bb84ceC5dA5547e1cb4722F9E496;
     uint256 constant DEPOSIT_TOKEN_AMOUNT = 20_000_000e18;
 
     DamnValuableToken token;
@@ -70,7 +58,11 @@ contract WalletMiningChallenge is Test {
         // Deploy CreateX contract using signed transaction
         vm.deal(CREATEX_DEPLOYMENT_SIGNER, 10 ether);
         vm.broadcastRawTransaction(CREATEX_DEPLOYMENT_TX);
-        assertEq(CREATEX_ADDRESS.codehash, CREATEX_CODEHASH, "Unexpected CreateX code");
+        assertEq(
+            CREATEX_ADDRESS.codehash,
+            CREATEX_CODEHASH,
+            "Unexpected CreateX code"
+        );
 
         startHoax(deployer);
 
@@ -89,18 +81,24 @@ contract WalletMiningChallenge is Test {
                 initCode: type(AuthorizerFactory).creationCode
             })
         );
-        authorizer = AuthorizerUpgradeable(authorizerFactory.deployWithProxy(wards, aims, upgrader));
+        authorizer = AuthorizerUpgradeable(
+            authorizerFactory.deployWithProxy(wards, aims, upgrader)
+        );
+
+        console.logAddress(address(authorizerFactory));
 
         // Send big bag full of DVT tokens to the deposit address
         token.transfer(USER_DEPOSIT_ADDRESS, DEPOSIT_TOKEN_AMOUNT);
 
         // Call singleton factory to deploy copy and factory contracts
-        (bool success, bytes memory returndata) =
-            address(SAFE_SINGLETON_FACTORY_ADDRESS).call(bytes.concat(bytes32(""), type(Safe).creationCode));
+        (bool success, bytes memory returndata) = address(
+            SAFE_SINGLETON_FACTORY_ADDRESS
+        ).call(bytes.concat(bytes32(""), type(Safe).creationCode));
         singletonCopy = Safe(payable(address(uint160(bytes20(returndata)))));
 
-        (success, returndata) =
-            address(SAFE_SINGLETON_FACTORY_ADDRESS).call(bytes.concat(bytes32(""), type(SafeProxyFactory).creationCode));
+        (success, returndata) = address(SAFE_SINGLETON_FACTORY_ADDRESS).call(
+            bytes.concat(bytes32(""), type(SafeProxyFactory).creationCode)
+        );
         proxyFactory = SafeProxyFactory(address(uint160(bytes20(returndata))));
 
         // Deploy wallet deployer
@@ -109,7 +107,12 @@ contract WalletMiningChallenge is Test {
                 salt: bytes32(keccak256("dvd.walletmining.walletdeployer")),
                 initCode: bytes.concat(
                     type(WalletDeployer).creationCode,
-                    abi.encode(address(token), address(proxyFactory), address(singletonCopy), deployer) // constructor args are appended at the end of creation code
+                    abi.encode(
+                        address(token),
+                        address(proxyFactory),
+                        address(singletonCopy),
+                        deployer
+                    ) // constructor args are appended at the end of creation code
                 )
             })
         );
@@ -119,7 +122,10 @@ contract WalletMiningChallenge is Test {
 
         // Fund wallet deployer with initial tokens
         initialWalletDeployerTokenBalance = walletDeployer.pay();
-        token.transfer(address(walletDeployer), initialWalletDeployerTokenBalance);
+        token.transfer(
+            address(walletDeployer),
+            initialWalletDeployerTokenBalance
+        );
 
         vm.stopPrank();
     }
@@ -130,7 +136,10 @@ contract WalletMiningChallenge is Test {
     function test_assertInitialState() public view {
         // Check initialization of authorizer
         assertNotEq(address(authorizer), address(0));
-        assertEq(TransparentProxy(payable(address(authorizer))).upgrader(), upgrader);
+        assertEq(
+            TransparentProxy(payable(address(authorizer))).upgrader(),
+            upgrader
+        );
         assertTrue(authorizer.can(ward, USER_DEPOSIT_ADDRESS));
         assertFalse(authorizer.can(player, USER_DEPOSIT_ADDRESS));
 
@@ -143,39 +152,68 @@ contract WalletMiningChallenge is Test {
         assertEq(USER_DEPOSIT_ADDRESS.code, hex"");
 
         // Factory and copy are deployed correctly
-        assertEq(address(walletDeployer.cook()).code, type(SafeProxyFactory).runtimeCode, "bad cook code");
-        assertEq(walletDeployer.cpy().code, type(Safe).runtimeCode, "no copy code");
+        assertEq(
+            address(walletDeployer.cook()).code,
+            type(SafeProxyFactory).runtimeCode,
+            "bad cook code"
+        );
+        assertEq(
+            walletDeployer.cpy().code,
+            type(Safe).runtimeCode,
+            "no copy code"
+        );
 
         // Ensure initial token balances are set correctly
         assertEq(token.balanceOf(USER_DEPOSIT_ADDRESS), DEPOSIT_TOKEN_AMOUNT);
         assertGt(initialWalletDeployerTokenBalance, 0);
-        assertEq(token.balanceOf(address(walletDeployer)), initialWalletDeployerTokenBalance);
+        assertEq(
+            token.balanceOf(address(walletDeployer)),
+            initialWalletDeployerTokenBalance
+        );
         assertEq(token.balanceOf(player), 0);
     }
 
     /**
      * CODE YOUR SOLUTION HERE
      */
-    function test_walletMining() public checkSolvedByPlayer {
-        
-    }
+    function test_walletMining() public checkSolvedByPlayer {}
 
     /**
      * CHECKS SUCCESS CONDITIONS - DO NOT TOUCH
      */
     function _isSolved() private view {
         // Factory account must have code
-        assertNotEq(address(walletDeployer.cook()).code.length, 0, "No code at factory address");
+        assertNotEq(
+            address(walletDeployer.cook()).code.length,
+            0,
+            "No code at factory address"
+        );
 
         // Safe copy account must have code
-        assertNotEq(walletDeployer.cpy().code.length, 0, "No code at copy address");
+        assertNotEq(
+            walletDeployer.cpy().code.length,
+            0,
+            "No code at copy address"
+        );
 
         // Deposit account must have code
-        assertNotEq(USER_DEPOSIT_ADDRESS.code.length, 0, "No code at user's deposit address");
+        assertNotEq(
+            USER_DEPOSIT_ADDRESS.code.length,
+            0,
+            "No code at user's deposit address"
+        );
 
         // The deposit address and the wallet deployer must not hold tokens
-        assertEq(token.balanceOf(USER_DEPOSIT_ADDRESS), 0, "User's deposit address still has tokens");
-        assertEq(token.balanceOf(address(walletDeployer)), 0, "Wallet deployer contract still has tokens");
+        assertEq(
+            token.balanceOf(USER_DEPOSIT_ADDRESS),
+            0,
+            "User's deposit address still has tokens"
+        );
+        assertEq(
+            token.balanceOf(address(walletDeployer)),
+            0,
+            "Wallet deployer contract still has tokens"
+        );
 
         // User account didn't execute any transactions
         assertEq(vm.getNonce(user), 0, "User executed a tx");
@@ -184,9 +222,17 @@ contract WalletMiningChallenge is Test {
         assertEq(vm.getNonce(player), 1, "Player executed more than one tx");
 
         // Player recovered all tokens for the user
-        assertEq(token.balanceOf(user), DEPOSIT_TOKEN_AMOUNT, "Not enough tokens in user's account");
+        assertEq(
+            token.balanceOf(user),
+            DEPOSIT_TOKEN_AMOUNT,
+            "Not enough tokens in user's account"
+        );
 
         // Player sent payment to ward
-        assertEq(token.balanceOf(ward), initialWalletDeployerTokenBalance, "Not enough tokens in ward's account");
+        assertEq(
+            token.balanceOf(ward),
+            initialWalletDeployerTokenBalance,
+            "Not enough tokens in ward's account"
+        );
     }
 }

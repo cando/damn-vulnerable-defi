@@ -41,7 +41,9 @@ contract L1Gateway is OwnableRoles {
     ) external {
         if (timestamp + DELAY > block.timestamp) revert EarlyWithdrawal();
 
-        bytes32 leaf = keccak256(abi.encode(nonce, l2Sender, target, timestamp, message));
+        bytes32 leaf = keccak256(
+            abi.encode(nonce, l2Sender, target, timestamp, message)
+        );
 
         // Only allow trusted operators to finalize without proof
         bool isOperator = hasAnyRole(msg.sender, OPERATOR_ROLE);
@@ -62,7 +64,15 @@ contract L1Gateway is OwnableRoles {
         xSender = l2Sender;
         bool success;
         assembly {
-            success := call(gas(), target, 0, add(message, 0x20), mload(message), 0, 0) // call with 0 value. Don't copy returndata.
+            success := call(
+                gas(),
+                target,
+                0,
+                add(message, 0x20),
+                mload(message),
+                0,
+                0
+            ) // call with 0 value. Don't copy returndata.
         }
         xSender = address(0xBADBEEF);
 

@@ -14,14 +14,25 @@ contract TokenBridge {
 
     error Unauthorized();
 
-    constructor(DamnValuableToken _token, L1Forwarder _forwarder, address _otherBridge) {
+    event TokenWithdrawal(address receiver, uint256 amount);
+
+    constructor(
+        DamnValuableToken _token,
+        L1Forwarder _forwarder,
+        address _otherBridge
+    ) {
         token = _token;
         l1Forwarder = _forwarder;
         otherBridge = _otherBridge;
     }
 
     function executeTokenWithdrawal(address receiver, uint256 amount) external {
-        if (msg.sender != address(l1Forwarder) || l1Forwarder.getSender() == otherBridge) revert Unauthorized();
+        if (
+            msg.sender != address(l1Forwarder) ||
+            l1Forwarder.getSender() == otherBridge
+        ) revert Unauthorized();
+
+        emit TokenWithdrawal(receiver, amount);
         totalDeposits -= amount;
         token.transfer(receiver, amount);
     }
